@@ -1,10 +1,8 @@
 from collections import Counter, defaultdict
 
-MOST_COMMON = 8
 COVERAGE_RANGE = 16
 INPUT_FILE = "input.txt"
 ENCODING = "latin-1"
-#ALPHABET = "abcdefghijklmnopqrstuvwxyz"
 ALPHABET = "abcdefghiklmnoprstuvwy"
 
 def load_filtered(path, encoding, alphabet):
@@ -12,35 +10,36 @@ def load_filtered(path, encoding, alphabet):
         text = f.read().lower()
     return [c for c in text if c in alphabet]
 
-def build_followers(filtered, alphabet):
+def build_unigram_followers(filtered):
     followers = defaultdict(Counter)
     for a, b in zip(filtered, filtered[1:]):
         followers[a][b] += 1
     return followers
 
-def compute_coverage(followers, alphabet, total_bigrams, n):
-    covered = sum(
-        sum(v for _, v in followers[letter].most_common(n))
-        for letter in alphabet
-    )
-    return covered / total_bigrams if total_bigrams else 0
+def build_bigram_followers(filtered):
+    followers = defaultdict(Counter)
+    for a, b, c, d in zip(filtered, filtered[1:], filtered[2:], filtered[3:]):
+        followers[(a, b)][(c, d)] += 1
+    return followers
 
-def print_table(followers, alphabet, most_common):
-    for letter in alphabet:
-        common = {c for c, _ in followers[letter].most_common(most_common)}
-        line = [f"{letter:>2} |"]
-        for c in alphabet:
-            line.append(f"{c:>2}" if c in common else "  ")
-        print(" ".join(line))
+def coverage_at_n(followers, total, n):
+    return sum(
+        sum(v for _, v in followers[ctx].most_common(n))
+        for ctx in followers
+    ) / total if total else 0
 
-def print_coverage(followers, alphabet, most_common, coverage_range):
-    total_bigrams = sum(sum(c.values()) for c in followers.values())
-    current = compute_coverage(followers, alphabet, total_bigrams, most_common)
-    print(f"{'top-N':>6}  {'coverage':>8}")
+def print_comparison(unigram_followers, bigram_followers, coverage_range):
+    u_total = sum(sum(c.values()) for c in unigram_followers.values())
+    b_total = sum(sum(c.values()) for c in bigram_followers.values())
+    print(f"{'slots':>6}  {'1-to-1 cov':>10}  {'letters/slot':>12}  {'2-to-2 cov':>10}  {'letters/slot':>12}")
     for n in range(1, coverage_range + 1):
-        print(f"{n:>6}  {compute_coverage(followers, alphabet, total_bigrams, n):>7.1%}")
+        u_cov = coverage_at_n(unigram_followers, u_total, n)
+        b_cov = coverage_at_n(bigram_followers, b_total, n)
+        u_lps = u_cov / n
+        b_lps = (b_cov * 2) / n
+        print(f"{n:>6}  {u_cov:>10.1%}  {u_lps:>12.4f}  {b_cov*2:>10.1%}  {b_lps:>12.4f}")
 
 filtered = load_filtered(INPUT_FILE, ENCODING, ALPHABET)
-followers = build_followers(filtered, ALPHABET)
-print_table(followers, ALPHABET, MOST_COMMON)
-print_coverage(followers, ALPHABET, MOST_COMMON, COVERAGE_RANGE)
+unigram_followers = build_unigram_followers(filtered)
+bigram_followers = build_bigram_followers(filtered)
+print_comparison(unigram_followers, bigram_followers, COVERAGE_RANGE)
